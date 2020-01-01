@@ -1,9 +1,25 @@
 #include <iostream>
 #include <vector>
+#include <zconf.h>
+#include "external_classifier.h"
 #include "domain_tree.h"
+
+void classifier_cb( std::string domain, MultiConnectionType service_type )
+{
+    std::cout << "Service type of " << domain << " is " << int(service_type) << std::endl;
+}
 
 int main() {
     std::cout << "Hello, World!" << std::endl;
+
+    ExternalClassifier classifier( "NqIJfPmTmrqa0e8gHbEn:IgAbGoTEYPVMfdLScrLa" );
+    classifier.register_classification_callback( classifier_cb );
+    classifier.add_classification_request( "callofduty.com" );
+    while(1)
+    {
+        sleep(10);
+    }
+    return 0;
 
     DomainTree domain_tree("db.json" );
 
