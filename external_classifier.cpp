@@ -84,6 +84,19 @@ void ExternalClassifier::add_classification_request( const std::string& domain_n
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
+//! Check if a request for a domain is pending
+//!
+//! \param domain_name - domain for which the request is issued
+bool ExternalClassifier::is_request_pending( const std::string& domain_name ) const
+{
+    std::lock_guard<std::mutex> lock(request_mtx_);
+    return (pending_classification_requests.count(domain_name) > 0);
+}
+
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
 //! Curl callback for incoming data from classification server
 size_t ExternalClassifier::classification_reply_handler( char *ptr, size_t, size_t nmemb, void *userdata )
 {
@@ -134,7 +147,7 @@ void ExternalClassifier::classification_requests_processing_task()
             std::unique_lock<std::mutex> lock(request_mtx_);
             auto const& request_it = pending_classification_requests.begin();
             lock.unlock();
-            auto base64_encoded_domain_name = base64_encode( request_it->c_str() );
+            auto base64_encoded_domain_name = base64_encode( *request_it );
 
             std::string url = "https://api.webshrinker.com/categories/v3/" + base64_encoded_domain_name;
             curl_easy_setopt(curl_, CURLOPT_URL,  url.c_str());
@@ -144,9 +157,11 @@ void ExternalClassifier::classification_requests_processing_task()
             auto curl_code = curl_easy_perform(curl_);
 
             // Process the reply and pass the result to the user
-            if ( (curl_code==CURLE_OK) && (classification_callback_ != nullptr) )
+            if ( (classification_callback_ != nullptr) )
             {
-                classification_callback_( *request_it, server_reply_to_service_type(server_reply_) );
+                classification_callback_( *request_it,
+                                          (curl_code==CURLE_OK)
+                                            ? server_reply_to_service_type(server_reply_) : kUnclassified );
             }
 
             lock.lock();
@@ -197,7 +212,7 @@ MultiConnectionType ExternalClassifier::server_reply_to_service_type( const std:
 //! Get category with the best score in an array of categories
 MultiConnectionType ExternalClassifier::get_best_category_fit( const Json::array& categories_array )
 {
-    auto best_score = "0";
+    auto best_score = std::string("0.0");
     auto best_is_confident = false;
     auto best_service_type = kUnclassified;
 
@@ -224,6 +239,8 @@ MultiConnectionType ExternalClassifier::get_best_category_fit( const Json::array
                     if ( service_type != kUnclassified )
                     {
                         best_service_type = service_type;
+                        best_is_confident = confident;
+                        best_score = score;
                     }
                 }
             }
@@ -237,7 +254,7 @@ MultiConnectionType ExternalClassifier::get_best_category_fit( const Json::array
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-//! Convert category type reported by server tor service type.
+//! Convert category type reported by server to service type.
 MultiConnectionType ExternalClassifier::category_type_to_service_type( const std::string& category_type )
 {
     static const std::unordered_map<std::string, MultiConnectionType> relevant_categories =

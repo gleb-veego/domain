@@ -27,6 +27,7 @@ enum class MultiConnectionType {
     upload_udp,
     untrusted,
     undefined,
+    quiering
 };
 
 enum class MultiConnectionSubtype {

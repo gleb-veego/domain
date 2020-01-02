@@ -52,13 +52,18 @@ public: // methods
     //! \param domain_name                   - domain for which the request is issued
     void add_classification_request( const std::string& domain_name );
 
+    //! Check if a request for a domain is pending
+    //!
+    //! \param domain_name - domain for which the request is issued
+    [[nodiscard]] bool is_request_pending( const std::string& domain_name ) const;
+
 private: // types and members
 
     //! Callback function that will be invoked after a classification request gets processed
     ClassificationCallback classification_callback_ = nullptr;
 
     //! Mutex for request queue
-    std::mutex request_mtx_;
+    mutable std::mutex request_mtx_;
 
     //! Set of classification requests awaiting processing
     std::unordered_set<std::string> pending_classification_requests;
@@ -108,7 +113,7 @@ private: // methods
     //! \return service type of a category with the highest score or unclassified if no good fit is found
     static MultiConnectionType get_best_category_fit( const json11::Json::array& categories_array );
 
-    //! Convert category type reported by server tor service type.
+    //! Convert category type reported by server to service type.
     //!
     //! \param category_type - category type received from the server
     //! \return corresponding service type
